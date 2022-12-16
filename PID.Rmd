@@ -1,0 +1,293 @@
+---
+title: "Untitled"
+author: "Ziwei Tian (ZIWEIT)"
+date: "2022-12-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+KLR = function(
+    x,
+    y,
+    kernel = c("polynomial", "RBF", "laplace", "sigmoid")[1],
+    lambda = 0.001,
+    sigma2 = 1,
+    c = 1,
+    d = 2,
+    rho = 1,
+    nu = 1.5,
+    tol = 1e-6,
+    max_iter = 1e5
+){
+    # inputs check
+    if(is.vector(y)) y = matrix(y, length(y), 1)
+    if(lambda<1.0e-16) stop("lambda should be positive")
+    if(sigma2<1.0e-16) stop("sigma2 should be positive")
+    if(tol<1.0e-16) stop("tol should be positive")
+    if(d < 1) stop("d should be larger than or equal to 1")
+    
+    # preparation
+    n = nrow(x)
+    p = ncol(x)
+    
+    # compute kernel
+    KERNELS = c("polynomial", "RBF", "laplace", "sigmoid", "matern")
+
+    if(kernel == "polynomial"){
+      D = tcrossprod(x)
+      K = (D + c)^d
+    }else if(kernel == "RBF"){
+      D = as.matrix(stats::dist(x))
+      K = exp(-D^2 / (2*sigma2))
+    }else if (kernel == "laplace") {
+      D = as.matrix(stats::dist(x, method = "manhattan"))
+      K = exp(-D / (2*sigma2))
+    }else if (kernel == "sigmoid") {
+      xs = scale(x, scale=F)
+      D = tcrossprod(xs)
+      K = tanh(D + c)
+    }else if (kernel == "matern") {
+      D = as.matrix(stats::dist(x))
+      M = sqrt(2*nu)/rho * D
+      K = (2^(1-nu))/gamma(nu) * (M^nu) * besselK(M, nu) 
+    }
+    else{
+        stop(paste("only kernels", KERNELS, "are implemented"))
+    }
+    K = scale(t(scale(K, scale=F)), scale=F)
+    
+    # obj function
+    objective = function(alpha){
+        lin_pred = K %*% alpha
+        penalty = lambda/2 * crossprod(alpha, K %*% alpha)
+        loss = mean(-y * lin_pred + log(1 + exp(lin_pred)))
+        return((loss + penalty))
+    }
+    
+    # fitted probability
+    probabilities = function(alpha){
+        lin_pred = K %*% alpha
+        proba = 1 / (1 + exp(-lin_pred))
+        return(proba)
+    }
+    
+    # gradient wrt alpha
+    gradients = function(alpha){
+      proba = probabilities(alpha)
+      g_alpha = -crossprod(K, ((y - proba) / n - lambda * alpha))
+      return(g_alpha)
+    }
+    
+    # fit using gradient descent
+    alpha = rep(0, n)
+    results = stats::optim(par = alpha, fn = objective, gr = gradients, method = "BFGS", control = list(maxit = max_iter, abstol = tol))
+    
+    # return
+    out = list(x=x, alpha=results$par, counts = results$counts, NLL = results$value, 
+    kernel=kernel, lambda = lambda, sigma2 = sigma2, c = c, d = d, rho = rho, nu = nu)
+    return(out)
+}
+```
+
+```{r}
+predict.KLR = function(object, newx=object$x, ...){
+    # construct kernel
+    m = nrow(newx)
+    n = nrow(object$x)
+    p = ncol(object$x)
+
+    l1_dist <- function(u, w){
+    sum(abs(u-w))
+    }
+
+  l1_norm <- function(x1, x2) {
+    f <- function(v) {
+      apply(x1, 1, FUN = l1_dist, w = v)
+    }
+    apply(x2, 1, FUN = f)
+  }
+
+    if (object$kernel == "polynomial"){
+        D = tcrossprod(object$x, newx)
+        K = (D + object$c)^object$d
+    }else if(object$kernel == "RBF"){
+      if(m==n){
+        if(all(object$x == newx)){
+          D = as.matrix(stats::dist(object$x))
+        }else{
+          D = matrix(pdist::pdist(object$x, newx)@dist, n, m, T)
+        }
+      }else{
+        D = matrix(pdist::pdist(object$x, newx)@dist, n, m, T)
+      }
+      K = exp(-D^2 / (2 * object$sigma2))
+    }else if(object$kernel == "laplace") {
+      if(m==n){
+        if(all(object$x == newx)){
+          D = as.matrix(stats::dist(object$x, method="manhattan"))
+        }else{
+          D = l1_norm(object$x, newx)
+        }
+      }else{
+        D = l1_norm(object$x, newx)
+      }
+      K = exp(-D / (2 * object$sigma2))
+    }else if(object$kernel == "sigmoid") {
+      xs = scale(object$x, scale=F)
+      newx = (newx - matrix(attr(xs, 'scaled:center'), m, p, T))
+      D = tcrossprod(xs, newx)
+      K = tanh(D + object$c)
+    }else if (object$kernel == "matern") {
+      if(m==n){
+        if(all(object$x == newx)){
+          D = as.matrix(stats::dist(object$x))
+        }else{
+          D = matrix(pdist::pdist(object$x, newx)@dist, n, m, T)
+        }
+      }else{
+        D = matrix(pdist::pdist(object$x, newx)@dist, n, m, T)
+      }
+      M = sqrt(2*object$nu)/object$rho * D
+      K = 2^(1-object$nu)/gamma(object$nu) * M^(object$nu) * besselK(M, object$nu)
+    }
+    K = scale(t(scale(K, scale=F)), scale=F)
+    
+    # compute predictors
+    f = K %*% object$alpha
+    p = 1 / (1 + exp(-f))
+    
+    return(p)
+}
+```
+
+```{r}
+library(mlbench)
+data(PimaIndiansDiabetes2)
+pmd <- na.omit(PimaIndiansDiabetes2)
+pmd$diabetes <- ifelse(pmd$diabetes == "pos", 1, 0)
+
+test_id = sample(1:nrow(pmd), floor(0.2*nrow(pmd)))
+train_pmd = pmd[-test_id, ]
+train_pmd_x = as.matrix(train_pmd[, -ncol(train_pmd_x)])
+train_pmd_y = train_pmd$diabetes
+test_pmd = pmd[test_id, ]
+test_pmd_x = as.matrix(test_pmd[, -ncol(train_pmd_x)])
+test_pmd_y = test_pmd$diabetes
+```
+
+### Linear kernel
+
+```{r}
+linear_pmd = KLR(train_pmd_x, train_pmd_y, kernel = "polynomial", d = 1)
+
+prob_train_pmd = predict.KLR(linear_pmd)
+pred_train_pmd = ifelse(prob_train_pmd <= 0.5, 0, 1)
+prob_test_pmd =  predict.KLR(linear_pmd, test_pmd_x)
+pred_test_pmd = ifelse(prob_test_pmd <= 0.5, 0, 1)
+
+(train_err = mean(train_pmd_y != pred_train_pmd))
+(test_err = mean(test_pmd_y != pred_test_pmd))
+```
+
+### Polynomial kernel
+
+```{r}
+poly_pmd = KLR(train_pmd_x, train_pmd_y, kernel = "polynomial", d = 3)
+
+prob_train_pmd = predict.KLR(poly_pmd)
+pred_train_pmd = ifelse(prob_train_pmd <= 0.5, 0, 1)
+prob_test_pmd =  predict.KLR(poly_pmd, test_pmd_x)
+pred_test_pmd = ifelse(prob_test_pmd <= 0.5, 0, 1)
+
+(train_err = mean(train_pmd_y != pred_train_pmd))
+(test_err = mean(test_pmd_y != pred_test_pmd))
+```
+
+### RBF
+
+```{r}
+RBF_pmd = KLR(train_pmd_x, train_pmd_y, kernel = "RBF")
+
+prob_train_pmd = predict.KLR(RBF_pmd)
+pred_train_pmd = ifelse(prob_train_pmd <= 0.5, 0, 1)
+prob_test_pmd =  predict.KLR(RBF_pmd, test_pmd_x)
+pred_test_pmd = ifelse(prob_test_pmd <= 0.5, 0, 1)
+
+(train_err = mean(train_pmd_y != pred_train_pmd))
+(test_err = mean(test_pmd_y != pred_test_pmd))
+```
+
+### Laplace
+
+```{r}
+laplace_pmd = KLR(train_pmd_x, train_pmd_y, kernel = "laplace")
+
+prob_train_pmd = predict.KLR(laplace_pmd)
+pred_train_pmd = ifelse(prob_train_pmd <= 0.5, 0, 1)
+prob_test_pmd =  predict.KLR(laplace_pmd, test_pmd_x)
+pred_test_pmd = ifelse(prob_test_pmd <= 0.5, 0, 1)
+
+(train_err = mean(train_pmd_y != pred_train_pmd))
+(test_err = mean(test_pmd_y != pred_test_pmd))
+```
+
+### Sigmoid
+
+```{r}
+sigmoid_pmd = KLR(train_pmd_x, train_pmd_y, kernel = "sigmoid")
+
+prob_train_pmd = predict.KLR(sigmoid_pmd)
+pred_train_pmd = ifelse(prob_train_pmd <= 0.5, 0, 1)
+prob_test_pmd =  predict.KLR(sigmoid_pmd, test_pmd_x)
+pred_test_pmd = ifelse(prob_test_pmd <= 0.5, 0, 1)
+
+(train_err = mean(train_pmd_y != pred_train_pmd))
+(test_err = mean(test_pmd_y != pred_test_pmd))
+```
+
+```{r}
+logit_pmd <- glm(diabetes ~ . - 1, data = train_pmd, family = "binomial")
+
+prob_train_pmd = predict(logit_pmd, train_pmd, type = "response")
+pred_train_pmd = ifelse(prob_train_pmd <= 0.5, 0, 1)
+prob_test_pmd = predict(logit_pmd, test_pmd)
+pred_test_pmd = ifelse(prob_test_pmd <= 0.5, 0, 1)
+
+(train_err = mean(train_pmd_y != pred_train_pmd))
+(test_err = mean(test_pmd_y != pred_test_pmd))
+```
+
+```{r}
+prob_test_pmd = calibrateBinary::KLR(train_pmd_x, train_pmd_y, test_pmd_x, lambda = 0.001, kernel = "exponential", power = 1, rho = 1)
+pred_test_pmd = ifelse(prob_test_pmd <= 0.5, 0, 1)
+
+(test_err = mean(test_pmd_y != pred_test_pmd))
+```
+
+```{r}
+prob_test_pmd = calibrateBinary::KLR(train_pmd_x, train_pmd_y, test_pmd_x, lambda = 0.001, kernel = "matern")
+pred_test_pmd = ifelse(prob_test_pmd <= 0.5, 0, 1)
+
+(test_err = mean(test_pmd_y != pred_test_pmd))
+```
+
+```{r}
+library(microbenchmark)
+```
+
+```{r}
+print(microbenchmark(KLR(train_pmd_x, train_pmd_y, kernel = "polynomial", d = 1),
+KLR(train_pmd_x, train_pmd_y, kernel = "polynomial", d = 3),
+KLR(train_pmd_x, train_pmd_y, kernel = "RBF"),
+KLR(train_pmd_x, train_pmd_y, kernel = "laplace"),
+KLR(train_pmd_x, train_pmd_y, kernel = "sigmoid"),
+glm(diabetes ~ . - 1, data = train_pmd, family = "binomial"),
+calibrateBinary::KLR(train_pmd_x, train_pmd_y, test_pmd_x, lambda = 0.001, kernel = "exponential", power = 1, rho = 1),
+calibrateBinary::KLR(train_pmd_x, train_pmd_y, test_pmd_x, lambda = 0.001, kernel = "matern"),
+times = 3))
+```
+

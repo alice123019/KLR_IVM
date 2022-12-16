@@ -1,0 +1,145 @@
+---
+title: "Untitled"
+author: "Ziwei Tian (ZIWEIT)"
+date: "2022-12-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(mlr3)
+generator = tgen("2dnormals")
+task = generator$generate(3000)
+data_2dnormals = task$data()
+data_2dnormals$y = ifelse(data_2dnormals$y == 'A', 0, 1)
+
+test_id = sample(1:3000, 600)
+train_2dnormals = data_2dnormals[-test_id, ]
+train_2dnormals_x = as.matrix(train_2dnormals[, -1])
+train_2dnormals_y = train_2dnormals$y
+test_2dnormals = data_2dnormals[test_id, ]
+test_2dnormals_x = as.matrix(test_2dnormals[, -1])
+test_2dnormals_y = test_2dnormals$y
+```
+
+```{r}
+plot(test_2dnormals$x1, test_2dnormals$x2, col = as.factor(test_2dnormals_y))
+```
+
+
+### Linear kernel
+
+```{r}
+linear_2dnormals = KLR(train_2dnormals_x, train_2dnormals_y, kernel = "polynomial", d = 1)
+
+prob_train_2dnormals = predict.KLR(linear_2dnormals)
+pred_train_2dnormals = ifelse(prob_train_2dnormals <= 0.5, 0, 1)
+prob_test_2dnormals =  predict.KLR(linear_2dnormals, test_2dnormals_x)
+pred_test_2dnormals = ifelse(prob_test_2dnormals <= 0.5, 0, 1)
+
+(train_err = mean(train_2dnormals_y != pred_train_2dnormals))
+(test_err = mean(test_2dnormals_y != pred_test_2dnormals))
+
+plot(test_2dnormals$x1, test_2dnormals$x2, col = as.factor(pred_test_2dnormals))
+```
+
+### Polynomial kernel
+
+```{r}
+poly_2dnormals = KLR(train_2dnormals_x, train_2dnormals_y, kernel = "polynomial", d = 3)
+
+prob_train_2dnormals = predict.KLR(poly_2dnormals)
+pred_train_2dnormals = ifelse(prob_train_2dnormals <= 0.5, 0, 1)
+prob_test_2dnormals =  predict.KLR(poly_2dnormals, test_2dnormals_x)
+pred_test_2dnormals = ifelse(prob_test_2dnormals <= 0.5, 0, 1)
+
+(train_err = mean(train_2dnormals_y != pred_train_2dnormals))
+(test_err = mean(test_2dnormals_y != pred_test_2dnormals))
+
+plot(test_2dnormals$x1, test_2dnormals$x2, col = as.factor(pred_test_2dnormals))
+```
+
+### RBF
+
+```{r}
+RBF_2dnormals = KLR(train_2dnormals_x, train_2dnormals_y, kernel = "RBF")
+
+prob_train_2dnormals = predict.KLR(RBF_2dnormals)
+pred_train_2dnormals = ifelse(prob_train_2dnormals <= 0.5, 0, 1)
+prob_test_2dnormals =  predict.KLR(RBF_2dnormals, test_2dnormals_x)
+pred_test_2dnormals = ifelse(prob_test_2dnormals <= 0.5, 0, 1)
+
+(train_err = mean(train_2dnormals_y != pred_train_2dnormals))
+(test_err = mean(test_2dnormals_y != pred_test_2dnormals))
+
+plot(test_2dnormals$x1, test_2dnormals$x2, col = as.factor(pred_test_2dnormals))
+```
+
+### Laplace
+
+```{r}
+laplace_2dnormals = KLR(train_2dnormals_x, train_2dnormals_y, kernel = "laplace")
+
+prob_train_2dnormals = predict.KLR(laplace_2dnormals)
+pred_train_2dnormals = ifelse(prob_train_2dnormals <= 0.5, 0, 1)
+prob_test_2dnormals =  predict.KLR(laplace_2dnormals, test_2dnormals_x)
+pred_test_2dnormals = ifelse(prob_test_2dnormals <= 0.5, 0, 1)
+
+(train_err = mean(train_2dnormals_y != pred_train_2dnormals))
+(test_err = mean(test_2dnormals_y != pred_test_2dnormals))
+
+plot(test_2dnormals$x1, test_2dnormals$x2, col = as.factor(pred_test_2dnormals))
+```
+
+### Sigmoid
+
+```{r}
+sigmoid_2dnormals = KLR(train_2dnormals_x, train_2dnormals_y, kernel = "sigmoid")
+
+prob_train_2dnormals = predict.KLR(sigmoid_2dnormals)
+pred_train_2dnormals = ifelse(prob_train_2dnormals <= 0.5, 0, 1)
+prob_test_2dnormals =  predict.KLR(sigmoid_2dnormals, test_2dnormals_x)
+pred_test_2dnormals = ifelse(prob_test_2dnormals <= 0.5, 0, 1)
+
+(train_err = mean(train_2dnormals_y != pred_train_2dnormals))
+(test_err = mean(test_2dnormals_y != pred_test_2dnormals))
+
+plot(test_2dnormals$x1, test_2dnormals$x2, col = as.factor(pred_test_2dnormals))
+```
+
+```{r}
+logit_2dnormals <- glm(y ~ x1 + x2, data = train_2dnormals, family = "binomial")
+
+prob_train_2dnormals = predict(logit_2dnormals, train_2dnormals, type = "response")
+pred_train_2dnormals = ifelse(prob_train_2dnormals <= 0.5, 0, 1)
+prob_test_2dnormals = predict(logit_2dnormals, test_2dnormals)
+pred_test_2dnormals = ifelse(prob_test_2dnormals <= 0.5, 0, 1)
+
+(train_err = mean(train_2dnormals_y != pred_train_2dnormals))
+(test_err = mean(test_2dnormals_y != pred_test_2dnormals))
+
+plot(test_2dnormals$x1, test_2dnormals$x2, col = as.factor(pred_test_2dnormals))
+```
+
+```{r}
+prob_test_2dnormals = calibrateBinary::KLR(train_2dnormals_x, train_2dnormals_y, test_2dnormals_x, lambda = 0.001, kernel = "exponential", power = 1, rho = 1)
+pred_test_2dnormals = ifelse(prob_test_2dnormals <= 0.5, 0, 1)
+
+(test_err = mean(test_2dnormals_y != pred_test_2dnormals))
+
+plot(test_2dnormals$x1, test_2dnormals$x2, col = as.factor(pred_test_2dnormals))
+```
+
+```{r}
+prob_test_2dnormals = calibrateBinary::KLR(train_2dnormals_x, train_2dnormals_y, test_2dnormals_x, lambda = 0.001, kernel = "matern")
+pred_test_2dnormals = ifelse(prob_test_2dnormals <= 0.5, 0, 1)
+
+(test_err = mean(test_2dnormals_y != pred_test_2dnormals))
+
+plot(test_2dnormals$x1, test_2dnormals$x2, col = as.factor(pred_test_2dnormals))
+```
+

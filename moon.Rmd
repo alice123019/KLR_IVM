@@ -1,0 +1,144 @@
+---
+title: "Moon"
+author: "Ziwei Tian (ZIWEIT)"
+date: "2022-12-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(mlr3)
+generator = tgen("moons")
+task = generator$generate(3000)
+data_moon = task$data()
+data_moon$y = ifelse(data_moon$y == 'A', 0, 1)
+
+test_id = sample(1:3000, 600)
+train_moon = data_moon[-test_id, ]
+train_moon_x = as.matrix(train_moon[, -1])
+train_moon_y = train_moon$y
+test_moon = data_moon[test_id, ]
+test_moon_x = as.matrix(test_moon[, -1])
+test_moon_y = test_moon$y
+```
+
+```{r}
+plot(test_moon$x1, test_moon$x2, col = as.factor(test_moon_y))
+```
+
+
+### Linear kernel
+
+```{r}
+linear_moon = KLR(train_moon_x, train_moon_y, kernel = "polynomial", d = 1)
+
+prob_train_moon = predict.KLR(linear_moon)
+pred_train_moon = ifelse(prob_train_moon <= 0.5, 0, 1)
+prob_test_moon =  predict.KLR(linear_moon, test_moon_x)
+pred_test_moon = ifelse(prob_test_moon <= 0.5, 0, 1)
+
+(train_err = mean(train_moon_y != pred_train_moon))
+(test_err = mean(test_moon_y != pred_test_moon))
+
+plot(test_moon$x1, test_moon$x2, col = as.factor(pred_test_moon))
+```
+
+### Polynomial kernel
+
+```{r}
+poly_moon = KLR(train_moon_x, train_moon_y, kernel = "polynomial", d = 3)
+
+prob_train_moon = predict.KLR(poly_moon)
+pred_train_moon = ifelse(prob_train_moon <= 0.5, 0, 1)
+prob_test_moon =  predict.KLR(poly_moon, test_moon_x)
+pred_test_moon = ifelse(prob_test_moon <= 0.5, 0, 1)
+
+(train_err = mean(train_moon_y != pred_train_moon))
+(test_err = mean(test_moon_y != pred_test_moon))
+
+plot(test_moon$x1, test_moon$x2, col = as.factor(pred_test_moon))
+```
+
+### RBF
+
+```{r}
+RBF_moon = KLR(train_moon_x, train_moon_y, kernel = "RBF")
+
+prob_train_moon = predict.KLR(RBF_moon)
+pred_train_moon = ifelse(prob_train_moon <= 0.5, 0, 1)
+prob_test_moon =  predict.KLR(RBF_moon, test_moon_x)
+pred_test_moon = ifelse(prob_test_moon <= 0.5, 0, 1)
+
+(train_err = mean(train_moon_y != pred_train_moon))
+(test_err = mean(test_moon_y != pred_test_moon))
+
+plot(test_moon$x1, test_moon$x2, col = as.factor(pred_test_moon))
+```
+
+### Laplace
+
+```{r}
+laplace_moon = KLR(train_moon_x, train_moon_y, kernel = "laplace")
+
+prob_train_moon = predict.KLR(laplace_moon)
+pred_train_moon = ifelse(prob_train_moon <= 0.5, 0, 1)
+prob_test_moon =  predict.KLR(laplace_moon, test_moon_x)
+pred_test_moon = ifelse(prob_test_moon <= 0.5, 0, 1)
+
+(train_err = mean(train_moon_y != pred_train_moon))
+(test_err = mean(test_moon_y != pred_test_moon))
+
+plot(test_moon$x1, test_moon$x2, col = as.factor(pred_test_moon))
+```
+
+### Sigmoid
+
+```{r}
+sigmoid_moon = KLR(train_moon_x, train_moon_y, kernel = "sigmoid")
+
+prob_train_moon = predict.KLR(sigmoid_moon)
+pred_train_moon = ifelse(prob_train_moon <= 0.5, 0, 1)
+prob_test_moon =  predict.KLR(sigmoid_moon, test_moon_x)
+pred_test_moon = ifelse(prob_test_moon <= 0.5, 0, 1)
+
+(train_err = mean(train_moon_y != pred_train_moon))
+(test_err = mean(test_moon_y != pred_test_moon))
+
+plot(test_moon$x1, test_moon$x2, col = as.factor(pred_test_moon))
+```
+
+```{r}
+logit_moon <- glm(y ~ x1 + x2, data = train_moon, family = "binomial")
+
+prob_train_moon = predict(logit_moon, train_moon, type = "response")
+pred_train_moon = ifelse(prob_train_moon <= 0.5, 0, 1)
+prob_test_moon = predict(logit_moon, test_moon)
+pred_test_moon = ifelse(prob_test_moon <= 0.5, 0, 1)
+
+(train_err = mean(train_moon_y != pred_train_moon))
+(test_err = mean(test_moon_y != pred_test_moon))
+
+plot(test_moon$x1, test_moon$x2, col = as.factor(pred_test_moon))
+```
+
+```{r}
+prob_test_moon = calibrateBinary::KLR(train_moon_x, train_moon_y, test_moon_x, lambda = 0.001, kernel = "exponential", power = 1, rho = 1)
+pred_test_moon = ifelse(prob_test_moon <= 0.5, 0, 1)
+
+(test_err = mean(test_moon_y != pred_test_moon))
+
+plot(test_moon$x1, test_moon$x2, col = as.factor(pred_test_moon))
+```
+
+```{r}
+prob_test_moon = calibrateBinary::KLR(train_moon_x, train_moon_y, test_moon_x, lambda = 0.001, kernel = "matern")
+pred_test_moon = ifelse(prob_test_moon <= 0.5, 0, 1)
+
+(test_err = mean(test_moon_y != pred_test_moon))
+
+plot(test_moon$x1, test_moon$x2, col = as.factor(pred_test_moon))
+```
+
