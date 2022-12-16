@@ -1,0 +1,139 @@
+---
+title: "KLR_SVM_IVM"
+author: "Ziwei Tian (ZIWEIT)"
+date: "2022-12-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(e1071)
+library(pdist)
+library(mlr3)
+```
+
+```{r}
+generator = tgen("moons")
+plot(generator, n = 500)
+task = generator$generate(500)
+data_moon = task$data()
+
+data_moon$y <- ifelse(data_moon$y == "A", 0, 1)
+```
+
+```{r}
+train_ind = sample(1:500, 400)
+train_x = data_moon[train_ind, ]
+test_x = data_moon[train_ind]
+
+train_y = data_moon[-train_ind, ]
+test_y = data_moon[train_ind]
+```
+
+# KLR
+
+```{r}
+start_time <- Sys.time()
+KLRobj = KLR(train_y, train_x, kernel="polynomial", lambda = 0.01)
+end_time <- Sys.time()
+end_time - start_time
+
+pr3 = predict.KLR(KLRobj)
+predicted = ifelse(pr3 <>= 0.5, 1, 0)
+mean(train_y != predicted)
+
+pr3 = predict.KLR(KLRobj, as.matrix(test_x))
+predicted = ifelse(pr3 >= 0.5, 1, 0)
+mean(test_y != predicted)
+```
+
+```{r}
+start_time <- Sys.time()
+KLRobj = KLR(train_y, train_x, kernel="RBF", lambda = 0.01)
+end_time <- Sys.time()
+end_time - start_time
+
+pr3 = predict.KLR(KLRobj)
+predicted = ifelse(pr3 <>= 0.5, 1, 0)
+mean(train_y != predicted)
+
+pr3 = predict.KLR(KLRobj, as.matrix(test_x))
+predicted = ifelse(pr3 >= 0.5, 1, 0)
+mean(test_y != predicted)
+```
+
+#IVM
+
+```{r}
+start_time <- Sys.time()
+IVMobj = IVM(train_y, train_x, kernel="polynomial", lambda = 0.01)
+end_time <- Sys.time()
+end_time - start_time
+
+pr3 = predict.IVM(IVMobj)
+predicted = ifelse(pr3 >= 0.5, 1, 0)
+mean(train_y != predicted)
+
+pr3 = predict.IVM(IVMobj, as.matrix(test_x))
+predicted = ifelse(pr3 >= 0.5, 1, 0)
+mean(test_y != predicted)
+```
+
+```{r}
+start_time <- Sys.time()
+IVMobj = IVM(train_y, train_x, kernel="RBF", lambda = 0.01)
+end_time <- Sys.time()
+end_time - start_time
+
+pr3 = predict.IVM(IVMobj)
+predicted = ifelse(pr3 >= 0.5, 1, 0)
+mean(train_y != predicted)
+
+pr3 = predict.IVM(IVMobj, as.matrix(test_x))
+predicted = ifelse(pr3 >= 0.5, 1, 0)
+mean(test_y != predicted)
+```
+
+# SVM
+
+```{r}
+train_moon = data_moon[train_ind, ]
+test_moon = data_moon[-train_ind, ]
+
+start_time <- Sys.time()
+classifier = svm(formula = y ~ . -1, data = train_moon,
+                 type = 'C-classification',
+                 kernel = 'polynomial')
+
+end_time <- Sys.time()
+end_time - start_time
+
+pred = predict(classifier)
+mean(train_y != pred)
+
+pred = predict(classifier, test_moon)
+mean(test_y != pred)
+```
+
+```{r}
+train_moon = data_moon[train_ind, ]
+test_moon = data_moon[-train_ind, ]
+
+start_time <- Sys.time()
+classifier = svm(formula = y ~ . -1, data = train_moon,
+                 type = 'C-classification',
+                 kernel = 'radial')
+
+end_time <- Sys.time()
+end_time - start_time
+
+pred = predict(classifier)
+mean(train_y != pred)
+
+pred = predict(classifier, test_moon)
+mean(test_y != pred)
+```
+
