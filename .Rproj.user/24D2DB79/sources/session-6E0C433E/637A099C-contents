@@ -1,0 +1,10 @@
+Package: KLR.IVM
+Type: Package
+Title: Kernal Logistic Regression (KLR) and Import Vector Machine (IVM)
+Version: 0.1.0
+Author: Ziwei Tian
+Maintainer: The package maintainer <ziweit@umich.edu>
+Description: Uisng Kernal Logistic Regression (KLR) or Import Vector Machine (IVM) for binary classification
+License: What license is it under?
+Encoding: UTF-8
+LazyData: true
